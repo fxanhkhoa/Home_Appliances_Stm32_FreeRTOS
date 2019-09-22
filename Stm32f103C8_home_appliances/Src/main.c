@@ -21,15 +21,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "dht22.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
 #include "BH1750.h"
 #include "SSD1306.h"
 #include "fonts.h"
 #include "DS1307.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,6 +46,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
 I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim2;
@@ -56,8 +57,8 @@ UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
 osThreadId defaultTaskHandle;
-osThreadId PrintSSDTaskHandle;
 /* USER CODE BEGIN PV */
+osThreadId joystickTaskHandle;
 
 /* USER CODE END PV */
 
@@ -67,28 +68,45 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_ADC1_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
-void StartPrintSSDTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
+void StartJoystickTask(void const * argument);
 int ConvertFromInt(char* str, int a);
 int ConvertFromFloat(char* str, float a);
 int ConvertFromIntForTime(char* str, int a);
 void Delay_us (uint16_t nTime);
-void DHT22_Init(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	
+	enum menu{	
+		LUX,
+		HUMIDITY,
+	};
+	
+	enum menu_do{
+		NOT_DO,
+		DO,
+	};
+	
+	enum level{
+		Menu,
+		Component,
+	};
+	
+	
 	uint8_t tx_buff[10] = {'H','E','L','L','\n'};
 	uint8_t rx_buff[10];
+	uint16_t adcBuffer[2];
 	time tDS1307;
-	static dht22_data data;
-	static
+	
+	int menu_select, menu_level, is_clicked;
 	
 	SemaphoreHandle_t xSemaphore;
 
@@ -126,15 +144,19 @@ int main(void)
   MX_DMA_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 	
 	HAL_UART_Receive_DMA(&huart1, rx_buff, 10);
-	DHT22_Init();
 	ssd1306_Init();
 	BH1750_Init();
-	
-		
+
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+
+	menu_select = LUX;
+	menu_level = Menu;
+	is_clicked = 0;
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -165,12 +187,11 @@ int main(void)
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-	 
-  //osThreadDef(PrintSSDTask, StartPrintSSDTask, osPriorityNormal, 1, 128);
-  //PrintSSDTaskHandle = osThreadCreate(osThread(PrintSSDTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+	osThreadDef(joystickTask, StartJoystickTask, osPriorityNormal, 0, 128);
+  joystickTaskHandle = osThreadCreate(osThread(joystickTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -197,6 +218,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the CPU, AHB and APB busses clocks 
   */
@@ -221,6 +243,65 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Common config 
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 2;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel 
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel 
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -276,9 +357,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = (uint16_t)((SystemCoreClock / 1) / 1000000) - 1;
+  htim2.Init.Prescaler = (36000000 / 10000) - 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = UINT16_MAX;
+  htim2.Init.Period = 10000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -348,6 +429,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
@@ -365,8 +449,8 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -380,6 +464,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB2 */
   GPIO_InitStruct.Pin = GPIO_PIN_2;
@@ -399,6 +489,96 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 	HAL_UART_Receive_DMA(UartHandle, rx_buff, 10);
 }
 
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+//{
+//	if (GPIO_Pin == GPIO_PIN_4)
+//	{ 
+//		if (!HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4))
+//			HAL_UART_Transmit(&huart1,(uint8_t *) "Clicked\n", 8, 1000);
+//	}
+//}
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used 
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartJoystickTask(void const * argument)
+{
+	for(;;)
+  {
+		char str[6];
+		int len;
+		
+		// Call DMA ADC
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+		
+		//ssd1306_SetCursor(70,23);
+		len = ConvertFromInt(str, adcBuffer[0]);
+		//ssd1306_WriteString(str ,Font_11x18, Black);
+//		HAL_UART_Transmit(&huart1,(uint8_t*) str, len, 1000);
+//		HAL_UART_Transmit(&huart1,(uint8_t *) "\n", 1, 1000);
+//		len = ConvertFromInt(str, adcBuffer[1]);
+		//ssd1306_SetCursor(70,40);
+		//ssd1306_WriteString(str ,Font_11x18, Black);
+//		HAL_UART_Transmit(&huart1,(uint8_t*) str, len, 1000);
+//		HAL_UART_Transmit(&huart1,(uint8_t *) "\n", 1, 1000);
+		
+		//ssd1306_UpdateScreen();
+		
+		/* Check X, Y Joystick task */
+		if (adcBuffer[0] > 3500) // right
+		{
+			HAL_UART_Transmit(&huart1,(uint8_t *) "trigger right\n", 8, 1000);
+			while (adcBuffer[0] > 2000) HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+		}
+		else if (adcBuffer[0] < 100) // left
+		{
+			HAL_UART_Transmit(&huart1,(uint8_t *) "trigger left\n", 8, 1000);
+			while (adcBuffer[0] < 1500) HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+		}
+		else if (adcBuffer[1] > 3500) // down
+		{
+			if (menu_level == Menu)
+			{
+				menu_select++;
+			}
+			HAL_UART_Transmit(&huart1,(uint8_t *) "trigger down\n", 8, 1000);
+			while (adcBuffer[1] > 2000) HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+		}
+		else if (adcBuffer[1] < 500) // up
+		{
+			if (menu_level == Menu)
+			{
+				menu_select--;
+			}
+			HAL_UART_Transmit(&huart1,(uint8_t *) "trigger up\n", 8, 1000);
+			while (adcBuffer[1] < 1500) HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adcBuffer, 2);
+		}
+		
+		if (menu_select > HUMIDITY)
+		{
+			menu_select = LUX;
+		}
+		if (menu_select < LUX)
+		{
+			menu_select = HUMIDITY;
+		}
+		
+		/* Check SW */
+		if (!HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4))
+		{
+			HAL_UART_Transmit(&huart1,(uint8_t *) "Clicked\n", 8, 1000);
+			is_clicked = 1;
+			while (!HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4));
+		}
+		
+		osDelay(1);
+	}
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -410,8 +590,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-   
-   
+    
+    
+    
+
   /* USER CODE BEGIN 5 */
 	ssd1306_Fill(White);
 	ssd1306_UpdateScreen();
@@ -433,6 +615,7 @@ void StartDefaultTask(void const * argument)
 					
 	//writeTime(&tDS1307);
 	osDelay(1000);
+	
   /* Infinite loop */
   for(;;)
   {
@@ -454,17 +637,15 @@ void StartDefaultTask(void const * argument)
 //					HAL_UART_Transmit(&huart1,(uint8_t*) "oC\n", 3, 1000);
 //					ConvertFromFloat(str, data.humidity);
 //					HAL_UART_Transmit(&huart1,(uint8_t*) str, sizeof(str), 1000);
-					HAL_UART_Transmit(&huart1,(uint8_t*) "GO\n", 3, 1000);
-						
-					uint16_t lux = BH1750_Read();
+//					HAL_UART_Transmit(&huart1,(uint8_t*) "GO\n", 3, 1000);
 					
-					tDS1307 = getTime();
-					printTime(&tDS1307);
+					
+				
+					/* FILL TIME */
+					//tDS1307 = getTime();
+					//printTime(&tDS1307);
 				
 					ssd1306_Fill(White);
-					//ssd1306_UpdateScreen();
-					
-					//osDelay(1000);
 					
 					ssd1306_SetCursor(1,2);
 					len = ConvertFromIntForTime(str, tDS1307.hours);
@@ -487,12 +668,60 @@ void StartDefaultTask(void const * argument)
 					len = ConvertFromIntForTime(str, tDS1307.year);
 					ssd1306_WriteString(str ,Font_7x10,Black);
 					
-					ssd1306_SetCursor(23,23);
-					len = ConvertFromFloat(str, data.temperature);
-				  len = ConvertFromInt(str, lux);
-					ssd1306_WriteString(str ,Font_11x18,Black);
 					
-					ssd1306_UpdateScreen();
+					/* Do menu */
+					if (menu_level == Menu)
+					{
+						/* FILL MENU */
+						ssd1306_SetCursor(3,20);
+						ssd1306_WriteString("View lux" ,Font_7x10, Black);
+						ssd1306_SetCursor(3,33);
+						ssd1306_WriteString("View humidity" ,Font_7x10, Black);
+						switch (menu_select)
+						{
+							case LUX:
+								ssd1306_SetCursor(60,20);
+								ssd1306_WriteString("*", Font_7x10, Black);
+								break;
+							case HUMIDITY:
+								ssd1306_SetCursor(100,33);
+								ssd1306_WriteString("*", Font_7x10, Black);
+								break;
+						};
+						if (is_clicked == 1) // user just clicked
+						{
+							menu_level = Component;
+							is_clicked = 0;
+						}
+					}
+					else if (menu_level == Component)
+					{
+						switch (menu_select)
+						{
+							case LUX:
+								ssd1306_SetCursor(2,23);
+								ssd1306_DrawLuxIcon(Black);
+								
+								ssd1306_SetCursor(24,23);
+								len = ConvertFromInt(str, BH1750_Read());
+								ssd1306_WriteString(str ,Font_11x18,Black);
+							
+								ssd1306_SetCursor(70,23);
+							  ssd1306_WriteString("Back*" ,Font_7x10,Black);
+								if (is_clicked == 1)
+								{
+									menu_level = Menu;
+									is_clicked = 0;
+								}
+								break;
+							case HUMIDITY:
+								ssd1306_SetCursor(100,33);
+								ssd1306_WriteString("*", Font_7x10, Black);
+								break;
+						};
+					}
+					
+					ssd1306_UpdateScreen();					
 					osDelay(1000);
 				}				 
 //				else 
@@ -523,28 +752,6 @@ void StartDefaultTask(void const * argument)
 //		
 		}
 	//}
-  /* USER CODE END 5 */ 
-}
-
-/* USER CODE BEGIN Header_PrintSSDTask */
-/**
-  * @brief  Function implementing the PrintSSDTask thread.
-  * @param  argument: Not used 
-  * @retval None
-  */
-/* USER CODE END Header_PrintSSDTask */
-void StartPrintSSDTask(void const * argument)
-{
-    
-    
-    
-
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-		osDelay(1000);		
-  }
   /* USER CODE END 5 */ 
 }
 

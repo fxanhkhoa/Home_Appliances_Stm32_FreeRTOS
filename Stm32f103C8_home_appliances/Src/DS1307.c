@@ -144,42 +144,49 @@ void get_Day_Of_Week(char* str, uint8_t index){
 		str[0] = 'M';
 		str[1] = 'o';
 		str[2] = 'n';
+		str[3] = '\0';
 	break;
 	case 2:
 //			printf("Tuesday\n\r");
 		str[0] = 'T';
 		str[1] = 'u';
 		str[2] = 'e';
+		str[3] = '\0';
 	break;
 	case 3:
 //			printf("Wednesday\n\r");
 		str[0] = 'W';
 		str[1] = 'e';
 		str[2] = 'd';
+		str[3] = '\0';
 	break;
 	case 4:
 //			printf("Thursday\n\r");
 		str[0] = 'T';
 		str[1] = 'h';
 		str[2] = 'u';
+		str[3] = '\0';
 	break;
 	case 5:
 //			printf("Friday\n\r");
 		str[0] = 'F';
 		str[1] = 'r';
 		str[2] = 'i';
+		str[3] = '\0';
 	break;
 	case 6:
 //			printf("Saturday\n\r");
 		str[0] = 'S';
 		str[1] = 'a';
 		str[2] = 't';
+		str[3] = '\0';
 	break;
 	case 7:
 //			printf("Sunday\n\r");
 		str[0] = 'S';
 		str[1] = 'u';
 		str[2] = 'n';
+		str[3] = '\0';
 	break;
 
 	default:

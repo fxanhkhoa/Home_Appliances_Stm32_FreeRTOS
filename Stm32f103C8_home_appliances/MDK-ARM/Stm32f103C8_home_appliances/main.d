@@ -21,6 +21,8 @@ stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1x
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h
+stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc.h
+stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc_ex.h
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 stm32f103c8_home_appliances\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_i2c.h
@@ -42,8 +44,6 @@ stm32f103c8_home_appliances\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/i
 stm32f103c8_home_appliances\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 stm32f103c8_home_appliances\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 stm32f103c8_home_appliances\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-stm32f103c8_home_appliances\main.o: ../Inc/dht22.h
-stm32f103c8_home_appliances\main.o: ../Inc/delay.h
 stm32f103c8_home_appliances\main.o: ../Inc/BH1750.h
 stm32f103c8_home_appliances\main.o: ../Inc/SSD1306.h
 stm32f103c8_home_appliances\main.o: ../Inc/fonts.h

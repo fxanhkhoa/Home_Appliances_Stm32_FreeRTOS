@@ -61,5 +61,6 @@ char ssd1306_WriteString(char* str, FontDef Font, SSD1306_COLOR color);
 void ssd1306_SetCursor(uint8_t x, uint8_t y);
 uint16_t get_CurrentX();
 uint16_t get_CurrentY();
+void ssd1306_DrawLuxIcon(SSD1306_COLOR color);
 
 #endif
